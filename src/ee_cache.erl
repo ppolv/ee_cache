@@ -8,7 +8,7 @@
 -record(state, {table, clean_interval}).
 
 %% API
--export([start_link/1, get/1, put/2]).
+-export([start_link/1, get/1, put/2, invalidate/1]).
 
 %% gen_server
 -export([init/1, handle_cast/2, handle_call/3, handle_info/2, terminate/2, code_change/3]).
@@ -16,6 +16,9 @@
 
 start_link(CleanInterval) ->
 	gen_server:start_link(?MODULE, CleanInterval, []).
+
+invalidate(Key) ->
+    ets:delete(?TABLE, Key).
 
 get(Key) ->
 	try {ok, ets:lookup_element(?TABLE, Key, 2)} 
