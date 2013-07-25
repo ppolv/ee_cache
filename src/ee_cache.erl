@@ -20,6 +20,8 @@
 -export([init/1, handle_cast/2, handle_call/3, handle_info/2, terminate/2, code_change/3]).
 
 -define(DEFAULT_RETRIEVAL_TIMEOUT, 10000).
+-define(DEFAULT_POPULATE_TIMEOUT, 12000).  
+    %% this make the gen_server to return an error instead if the exit.  Should never happens anyway
 
 start_link(CleanInterval) ->
     start_link(CleanInterval, ?DEFAULT_RETRIEVAL_TIMEOUT).
@@ -34,7 +36,7 @@ get(Key, Fun) ->
         [{Key, Value}] ->
             Value;
         [] ->  
-            gen_server:call(?MODULE, {populate, Key, Fun})
+            gen_server:call(?MODULE, {populate, Key, Fun}, ?DEFAULT_POPULATE_TIMEOUT)
 	end.
 
 put(Key, Value) ->
