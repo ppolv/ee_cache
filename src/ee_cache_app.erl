@@ -13,7 +13,7 @@
 
 start(_StartType, _StartArgs) ->
 	EvictEach = case application:get_env(ee_cache, evict_each) of %%default is evict each 10 seconds
-			undefined -> 10;
+			undefined -> 10000;
 			{ok,N} -> N
 		end,
 	ee_cache_sup:start_link(EvictEach).

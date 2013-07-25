@@ -7,5 +7,5 @@
 	stdlib
      ]},
     {mod, { ee_cache_app, []}},
-    {env, [{evict_each, 5}]}
+    {env, [{evict_each, 5000}]}
   ]}.
