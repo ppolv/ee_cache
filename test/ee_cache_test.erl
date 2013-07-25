@@ -37,6 +37,7 @@ ee_cache_test_() ->
 
 test_keys_found() ->
     ee_cache:put(a, "A"),
+    ?assertEqual({ok, "XX"}, ee_cache:get(x, {fun(X) ->X++X end, ["X"]})),
     ?assertEqual({ok,"A"}, ee_cache:get(a, fun() -> "B" end)),
     {ok,B} =  ee_cache:get(b, fun() -> now() end),
     ?assertEqual({ok,B}, ee_cache:get(b, fun() -> now() end)).

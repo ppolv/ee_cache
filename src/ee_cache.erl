@@ -64,7 +64,7 @@ handle_call({populate, Key, Fun}, From, State = #state{waiting_table = WT}) ->
                             State#state.retrieval_timeout, self(), {retrieval_timeout, Key}),  
             Server = self(),
             spawn(fun() ->
-                        try gen_server:cast(Server,{result, TRef, Key, {ok,Fun()}})
+                        try gen_server:cast(Server,{result, TRef, Key, {ok,retrieve(Fun)}})
                         catch
                             Type:Error ->
                                 gen_server:cast(Server,{result, TRef, Key, {error, {Type, Error}}})
@@ -115,3 +115,7 @@ code_change(_OldVs, State, _NewVsn) ->
 
 
 
+retrieve({Fun,Args}) when is_function(Fun) ->
+    apply(Fun, Args);
+retrieve(Fun) when is_function(Fun) ->
+    Fun().
