@@ -54,24 +54,49 @@ init([CleanIntervalMilliSec, RetrievalTimeout]) ->
             clean_interval = CleanIntervalMilliSec,
             retrieval_timeout = RetrievalTimeout
         }}.
-handle_call({populate, Key, Fun}, From, State = #state{waiting_table = WT}) ->
-    case ets:lookup(WT, Key) of
-        [{Key, TRef, List}] ->
-            ets:insert(WT, {Key, TRef, [From|List]});
-        [] ->
-            %%In case the spawned fun did not answer in 10 seconds
-            {ok, TRef} = timer:send_after(
-                            State#state.retrieval_timeout, self(), {retrieval_timeout, Key}),  
-            Server = self(),
-            spawn(fun() ->
-                        try gen_server:cast(Server,{result, TRef, Key, {ok,retrieve(Fun)}})
-                        catch
-                            Type:Error ->
-                                gen_server:cast(Server,{result, TRef, Key, {error, {Type, Error}}})
-                        end
-                end),
-            ets:insert(WT, {Key, TRef, [From]})
-    end,
+
+all_pending_calls(KV) ->
+    receive
+        {'$gen_call', From, {populate, _Key, _Fun} = Call} ->
+            NewKV = case lists:keyfind(Call, 1, KV) of
+                {Call, Requesters} ->
+                    lists:keystore(Call, 1, KV, {Call, [From|Requesters]});
+                false ->
+                    [{Call, [From]} | KV]
+             end,
+            all_pending_calls(NewKV)
+    after 0 ->
+            KV
+    end.
+
+
+handle_call({populate, _Key, _Fun}=Call, From, State = #state{waiting_table = WT}) ->
+    %% cache doesn't behave well when tons of process try call it at the same time,
+    %% under high load.   Messages can accumulate a little bit on the gen_server queue.
+    %% Since there is work (ets lookup/inserts) that need to be done per each key, rather
+    %% than call,  we try to process them on group when possible.
+    %% Note than in general, when overloaded, this is indeed what happens.  Thousands of
+    %% process requesting the *same* key together. 
+    AllRequests =  all_pending_calls([{Call, [From]}]), 
+    lists:foreach(fun({{populate, Key, Fun}, Requesters}) ->
+        case ets:lookup(WT, Key) of
+            [{Key, TRef, List}] ->
+                ets:insert(WT, {Key, TRef, Requesters ++ List});
+            [] ->
+                %%In case the spawned fun did not answer in 10 seconds
+                {ok, TRef} = timer:send_after(
+                                State#state.retrieval_timeout, self(), {retrieval_timeout, Key}),  
+                Server = self(),
+                spawn(fun() ->
+                            try gen_server:cast(Server,{result, TRef, Key, {ok,retrieve(Fun)}})
+                            catch
+                                Type:Error ->
+                                    gen_server:cast(Server,{result, TRef, Key, {error, {Type, Error}}})
+                            end
+                    end),
+                ets:insert(WT, {Key, TRef, Requesters})
+        end 
+    end, AllRequests),
     {noreply, State};
 
 handle_call(stop, _From, State) ->
